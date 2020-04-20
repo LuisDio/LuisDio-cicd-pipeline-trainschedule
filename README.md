@@ -15,4 +15,4 @@ You can run the app with:
 Once it is running, you can access it in a browser at [http://localhost:3000](http://localhost:3000)
 
 A test text added to check for new commit now and now
-test 2
+test 3
