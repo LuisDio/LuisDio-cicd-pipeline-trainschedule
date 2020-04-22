@@ -1,5 +1,9 @@
 pipeline {
     agent any
+    environment {
+        //be sure to replace "" with your own Docker Hub username
+        DOCKER_IMAGE_NAME = "lu23/train-schedule"
+    }
     stages {
         stage('Build') {
             steps {
@@ -14,9 +18,9 @@ pipeline {
             }
             steps {
                 script {
-                    app = docker.build("lu23/train-schedule")
+                    app = docker.build(DOCKER_IMAGE_NAME)
                     app.inside {
-                        sh 'echo $(curl localhost:8080)'
+                        sh 'echo Hello, World!'
                     }
                 }
             }
@@ -27,34 +31,26 @@ pipeline {
             }
             steps {
                 script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'DockerHub') {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker_hub_login') {
                         app.push("${env.BUILD_NUMBER}")
                         app.push("latest")
                     }
                 }
             }
         }
-        stage('Deploy to production') {
+        stage('DeployToProduction') {
             when {
                 branch 'master'
             }
             steps {
-                input 'Deploy to production ?'
+                input 'Deploy to Production?'
                 milestone(1)
-                withCredentials([usernamePassword(credentialsId: 'webserver_login', usernameVarialbe: 'USERNAME', passwordVariable: 'USERPASS')]) {
-                    script {
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prodserver_ip \"docker pull lu23/train-schedule:${env.BUILD_NUMBER}\""
-                        try {
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prodserver_ip \"docker stop train-schedule\""
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prodserver_ip \"docker rm train-schedule\""
-                        } catch (err) {
-                            echo: 'caught error: $err'
-                        }
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prodserver_ip \"docker run --restart always --name train-schedule -p 8080:8080 -d lu23/train-schedule:${env.BUILD_NUMBER}\""
-                    }
-                }
+                kubernetesDeploy(
+                    kubeconfigId: 'Kubeconfig',
+                    configs: 'trainSchedule-kube.yml',
+                    enableConfigSubstitution: true
+                )
             }
         }
     }
 }
-
